@@ -1,3 +1,4 @@
+const { validationResult } = require("express-validator");
 const { User, Organisation, UserOrganisation } = require("../models");
 const { hashPassword, comparePassword } = require("../utils/password");
 const { generateToken } = require("../utils/jwt");
@@ -13,33 +14,24 @@ const errorMsgMap = {
 };
 
 const register = async (req, res) => {
-	const { firstName, lastName, email, password, phone } = req.body;
-	const requiredFields = ["firstName", "lastName", "email", "password"];
-	const errors = [];
-
-	requiredFields.forEach((field) => {
-		if (!req.body[field]) {
-			errors.push({
-				field,
-				message: `${errorMsgMap[field]} is required`,
-			});
-		}
-	});
-
-	if (errors.length > 0) {
+	const validationErrors = validationResult(req);
+	if (!validationErrors.isEmpty()) {
+		const errors = validationErrors.array().map((error) => ({
+			field: error.path,
+			message: error.msg,
+		}));
 		return res.status(422).json({ errors });
 	}
 
+	const { firstName, lastName, email, password, phone } = req.body;
 	const userId = generateUniqueId(`${firstName}-${lastName}`);
 	const userByEmail = await User.findOne({ where: { email } });
 	const userById = await User.findByPk(userId);
 
 	if (userByEmail || userById) {
-		return res
-			.status(422)
-			.json({
-				errors: [{ field: "email", message: "Duplicate email!" }],
-			});
+		return res.status(422).json({
+			errors: [{ field: "email", message: "Duplicate email!" }],
+		});
 	}
 
 	const hashedPassword = await hashPassword(password);
@@ -81,22 +73,16 @@ const register = async (req, res) => {
 };
 
 const login = async (req, res) => {
-	const { email, password } = req.body;
-	const requiredFields = ["email", "password"];
-	const errors = [];
-
-	requiredFields.forEach((field) => {
-		if (!req.body[field]) {
-			errors.push({
-				field,
-				message: `${field} is required`,
-			});
-		}
-	});
-	if (errors.length > 0) {
+	const validationErrors = validationResult(req);
+	if (!validationErrors.isEmpty()) {
+		const errors = validationErrors.array().map((error) => ({
+			field: error.path,
+			message: error.msg,
+		}));
 		return res.status(422).json({ errors });
 	}
 
+	const { email, password } = req.body;
 	try {
 		const user = await User.findOne({ where: { email } });
 		if (!user || !(await comparePassword(password, user.password))) {
