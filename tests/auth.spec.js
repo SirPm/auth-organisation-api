@@ -1,6 +1,5 @@
 const request = require("supertest");
 const bcrypt = require("bcryptjs");
-const sequelize = require("../config/database");
 const { Organisation, User, UserOrganisation } = require("../models");
 const { app } = require("../server");
 const { generateUniqueId } = require("../utils/helpers");
@@ -9,7 +8,18 @@ const jwt = require("jsonwebtoken");
 const dotenv = require("dotenv");
 dotenv.config();
 
-/* Unit Tests */
+const getOrganisationData = async (userId, orgId) => {
+	const userOrg = await UserOrganisation.findOne({
+		where: { userId, orgId },
+	});
+	if (!userOrg) {
+		throw new Error("User does not have access to this organisation");
+	}
+	return Organisation.findOne({ where: { orgId } });
+};
+
+/* UNIT TESTS */
+
 describe("Token Generation", () => {
 	it("should generate a token that expires in 1 hour and contains correct user details", () => {
 		const user = { userId: "user123", email: "user@example.com" };
@@ -30,7 +40,41 @@ describe("Token Generation", () => {
 	});
 });
 
-/* End-To-End Test */
+describe("Organisation Service", () => {
+	let findOneUserOrg;
+	let findOneOrg;
+
+	beforeEach(() => {
+		findOneUserOrg = jest.spyOn(UserOrganisation, "findOne");
+		findOneOrg = jest.spyOn(Organisation, "findOne");
+	});
+
+	afterEach(() => {
+		jest.resetAllMocks();
+	});
+
+	it("should throw an error if user does not have access to the organisation", async () => {
+		findOneUserOrg.mockResolvedValue(null);
+
+		await expect(getOrganisationData("user123", "org123")).rejects.toThrow(
+			"User does not have access to this organisation"
+		);
+	});
+
+	it("should return organisation data if user has access", async () => {
+		const orgData = { orgId: "org123", name: "Test Org" };
+		findOneUserOrg.mockResolvedValue({
+			userId: "user123",
+			orgId: "org123",
+		});
+		findOneOrg.mockResolvedValue(orgData);
+
+		const result = await getOrganisationData("user123", "org123");
+		expect(result).toEqual(orgData);
+	});
+});
+
+/* END TO END TEST */
 describe("Auth Endpoints", () => {
 	beforeEach(async () => {
 		jest.clearAllMocks();
@@ -57,10 +101,10 @@ describe("Auth Endpoints", () => {
 		expect(res.body.data.user.firstName).toEqual("John");
 		expect(res.body.data.user.email).toEqual("john@example.com");
 		expect(res.body.data).toHaveProperty("accessToken");
-
-		const createdOrganisation = await Organisation.findOne({
+		const organisations = await Organisation.findAll({
 			where: { name: "John's Organisation" },
 		});
+		const createdOrganisation = Array.from(organisations)[0].toJSON();
 		expect(createdOrganisation).not.toBeNull();
 		expect(createdOrganisation.name).toEqual("John's Organisation");
 	});
