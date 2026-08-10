@@ -17,17 +17,15 @@ Node.js, Express, Sequelize, PostgreSQL, JWT, bcrypt, express-validator
 
 ## Running locally
 
-\`bash
 git clone https://github.com/SirPm/auth-organisation-api.git
 cd auth-organisation-api
 yarn install
 yarn dev
-\`
+
 
 Requires a `.env` file with your PostgreSQL connection string and JWT secret.
 
 ## Tests
 
-\`\`\`bash
 yarn test
-\`\`\`
+
